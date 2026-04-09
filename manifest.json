@@ -1,0 +1,22 @@
+{
+  "name": "বাংলাদেশ দুর্যোগ সতর্কতা",
+  "short_name": "দুর্যোগ সতর্কতা",
+  "description": "বাংলাদেশের জন্য রিয়েলটাইম দুর্যোগ সতর্কতা অ্যাপ",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08090d",
+  "theme_color": "#08090d",
+  "lang": "bn",
+  "categories": ["weather", "news", "utilities"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "আবহাওয়া", "url": "/index.html#weather", "description": "লাইভ আবহাওয়া দেখুন" },
+    { "name": "জরুরি নম্বর", "url": "/index.html#sos", "description": "জরুরি ফোন নম্বর" }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
