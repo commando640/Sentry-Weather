@@ -1,22 +1,44 @@
 {
   "name": "বাংলাদেশ দুর্যোগ সতর্কতা",
   "short_name": "দুর্যোগ সতর্কতা",
-  "description": "বাংলাদেশের জন্য রিয়েলটাইম দুর্যোগ সতর্কতা অ্যাপ",
+  "description": "বাংলাদেশের রিয়েলটাইম দুর্যোগ সতর্কতা অ্যাপ — আবহাওয়া, ভূমিকম্প, বন্যা, ঘূর্ণিঝড়। Developed by Abdullah Al Fahim.",
   "start_url": "/index.html",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#08090d",
-  "theme_color": "#08090d",
+  "orientation": "portrait-primary",
+  "background_color": "#040608",
+  "theme_color": "#040608",
   "lang": "bn",
+  "dir": "ltr",
   "categories": ["weather", "news", "utilities"],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "shortcuts": [
-    { "name": "আবহাওয়া", "url": "/index.html#weather", "description": "লাইভ আবহাওয়া দেখুন" },
-    { "name": "জরুরি নম্বর", "url": "/index.html#sos", "description": "জরুরি ফোন নম্বর" }
+    {
+      "name": "আবহাওয়া",
+      "short_name": "আবহাওয়া",
+      "url": "/index.html#weather",
+      "description": "৮ বিভাগের লাইভ আবহাওয়া",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "জরুরি নম্বর",
+      "short_name": "জরুরি",
+      "url": "/index.html#sos",
+      "description": "২৪/৭ জরুরি ফোন নম্বর",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "ভূমিকম্প",
+      "short_name": "ভূমিকম্প",
+      "url": "/index.html#quake",
+      "description": "USGS লাইভ ভূমিকম্প তথ্য",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
   ],
   "screenshots": [],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "related_applications": []
 }
