@@ -1,86 +1,105 @@
-/* ══════════════════════════════════════════════════
-   BDAS Service Worker · বাংলাদেশ দুর্যোগ সতর্কতা
-   ══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   BDAS Service Worker v2.0
+   বাংলাদেশ দুর্যোগ সতর্কতা সিস্টেম
+   Developer: Abdullah Al Fahim
+   ══════════════════════════════════════════════════════ */
 
-const VERSION = 'bdas-v1.2';
-const CACHE = 'bdas-cache-v1';
-const DATA_CACHE = 'bdas-data-v1';
+const VERSION    = 'bdas-v2.0';
+const APP_CACHE  = 'bdas-app-v2';
+const DATA_CACHE = 'bdas-data-v2';
 
-/* যা ক্যাশ হবে (অফলাইনে কাজ করবে) */
 const PRECACHE = [
   '/index.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
-  'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap'
+  'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@400;500;600;700;800&display=swap'
 ];
 
-/* API গুলো যা পর্যায়ক্রমে আপডেট হবে */
-const API_URLS = [
-  'https://api.open-meteo.com/v1/forecast?latitude=23.71,22.36,24.89,22.85,24.37,22.70,25.74,24.75&longitude=90.41,91.78,91.87,89.54,88.60,90.35,89.28,90.42&current=temperature_2m,precipitation,windspeed_10m,winddirection_10m,weathercode,relativehumidity_2m&timezone=Asia%2FDhaka',
-  'https://marine-api.open-meteo.com/v1/marine?latitude=21.5&longitude=91.8&current=wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height&timezone=Asia%2FDhaka',
-  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_month.geojson'
+const API_BASES = [
+  'https://api.open-meteo.com/v1/forecast',
+  'https://marine-api.open-meteo.com/v1/marine',
+  'https://earthquake.usgs.gov/earthquakes/feed'
 ];
 
-/* ── INSTALL ─────────────────────────────────────── */
+/* ── INSTALL ─────────────────────────────────────────────── */
 self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE).then(c => {
-      return Promise.allSettled(
-        PRECACHE.map(url => c.add(url).catch(() => {}))
-      );
-    })
+    caches.open(APP_CACHE).then(c =>
+      Promise.allSettled(PRECACHE.map(url => c.add(url).catch(() => null)))
+    )
   );
 });
 
-/* ── ACTIVATE ────────────────────────────────────── */
+/* ── ACTIVATE ────────────────────────────────────────────── */
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE && k !== DATA_CACHE)
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== APP_CACHE && k !== DATA_CACHE)
             .map(k => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
-/* ── FETCH STRATEGY ──────────────────────────────── */
+/* ── FETCH STRATEGY ──────────────────────────────────────── */
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  /* API calls → Network first, cache fallback */
-  if (API_URLS.some(api => url.startsWith(api.split('?')[0]))) {
-    e.respondWith(
-      fetch(e.request.clone())
-        .then(res => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(DATA_CACHE).then(c => c.put(e.request, clone));
-          }
-          return res;
-        })
-        .catch(() => caches.match(e.request))
-    );
+  // API calls → Network-first, cache fallback (5s timeout)
+  if (API_BASES.some(base => url.startsWith(base))) {
+    e.respondWith(networkFirstWithTimeout(e.request, 8000));
     return;
   }
 
-  /* Google Fonts → Cache first */
+  // Google Fonts → Cache-first
   if (url.includes('fonts.googleapis') || url.includes('fonts.gstatic')) {
-    e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request))
-    );
+    e.respondWith(cacheFirst(e.request));
     return;
   }
 
-  /* App shell → Cache first, network fallback */
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
-  );
+  // App shell → Cache-first, network fallback
+  e.respondWith(cacheFirst(e.request));
 });
 
-/* ── BACKGROUND SYNC (পর্যায়ক্রমে ডেটা আপডেট) ──── */
+async function networkFirstWithTimeout(request, timeout) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(request.clone(), { signal: controller.signal });
+    clearTimeout(timer);
+    if (res.ok) {
+      const cache = await caches.open(DATA_CACHE);
+      cache.put(request, res.clone());
+    }
+    return res;
+  } catch (_) {
+    clearTimeout(timer);
+    const cached = await caches.match(request);
+    return cached || new Response('{"error":"offline"}', {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  try {
+    const res = await fetch(request);
+    if (res.ok) {
+      const cache = await caches.open(APP_CACHE);
+      cache.put(request, res.clone());
+    }
+    return res;
+  } catch (_) {
+    return new Response('Offline', { status: 503 });
+  }
+}
+
+/* ── PERIODIC BACKGROUND SYNC ────────────────────────────── */
 self.addEventListener('periodicsync', e => {
   if (e.tag === 'bdas-refresh') {
     e.waitUntil(backgroundRefresh());
@@ -88,69 +107,80 @@ self.addEventListener('periodicsync', e => {
 });
 
 async function backgroundRefresh() {
+  const urls = [
+    'https://api.open-meteo.com/v1/forecast?latitude=23.7104,22.3569,24.3745,22.8456,24.8949,22.7010,25.7439,24.7471&longitude=90.4074,91.7832,88.6016,89.5403,91.8687,90.3533,89.2752,90.4203&current=temperature_2m,apparent_temperature,precipitation,rain,weathercode,windspeed_10m,winddirection_10m,relativehumidity_2m,surface_pressure&timezone=Asia%2FDhaka&forecast_days=1',
+    'https://marine-api.open-meteo.com/v1/marine?latitude=21.5&longitude=91.8&current=wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height&timezone=Asia%2FDhaka',
+    'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_month.geojson'
+  ];
   const cache = await caches.open(DATA_CACHE);
-  for (const url of API_URLS) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) await cache.put(url, res);
-    } catch (_) {}
-  }
-  /* ক্লায়েন্টদের জানাও */
+  await Promise.allSettled(
+    urls.map(async url => {
+      try {
+        const res = await fetch(url);
+        if (res.ok) await cache.put(url, res);
+      } catch (_) {}
+    })
+  );
   const clients = await self.clients.matchAll({ type: 'window' });
   clients.forEach(c => c.postMessage({ type: 'BG_UPDATED', time: Date.now() }));
 }
 
-/* ── PUSH NOTIFICATION ───────────────────────────── */
+/* ── PUSH NOTIFICATIONS ──────────────────────────────────── */
 self.addEventListener('push', e => {
   const data = e.data ? e.data.json() : {};
-  const title = data.title || '⚠️ দুর্যোগ সতর্কতা';
-  const body  = data.body  || 'নতুন সতর্কতা জারি হয়েছে';
+  const title = data.title || '⚠️ বাংলাদেশ দুর্যোগ সতর্কতা';
+  const body  = data.body  || 'নতুন সতর্কতা জারি হয়েছে — অ্যাপ খুলুন।';
+  const urgency = data.urgency || 'normal';
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      vibrate: [200, 100, 200, 100, 200],
-      tag: 'bdas-alert',
-      requireInteraction: true,
+      vibrate: urgency === 'high' ? [300,100,300,100,300,100,300] : [200,100,200],
+      tag: 'bdas-alert-' + Date.now(),
+      requireInteraction: urgency === 'high',
       actions: [
-        { action: 'open', title: 'বিস্তারিত দেখুন' },
-        { action: 'close', title: 'বন্ধ করুন' }
-      ]
+        { action: 'open',  title: '📱 বিস্তারিত দেখুন' },
+        { action: 'close', title: '✕ বন্ধ করুন' }
+      ],
+      data: { url: '/index.html' }
     })
   );
 });
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  if (e.action === 'open' || !e.action) {
+  if (e.action !== 'close') {
+    const target = (e.notification.data && e.notification.data.url) || '/index.html';
     e.waitUntil(
       self.clients.matchAll({ type: 'window' }).then(clients => {
-        if (clients.length) return clients[0].focus();
-        return self.clients.openWindow('/index.html');
+        const focused = clients.find(c => c.url.includes('/index.html') && 'focus' in c);
+        return focused ? focused.focus() : self.clients.openWindow(target);
       })
     );
   }
 });
 
-/* ── WEATHER ALERT CHECK (প্রতি ১০ মিনিটে) ─────── */
+/* ── ALERT CHECK MESSAGE HANDLER ─────────────────────────── */
 self.addEventListener('message', e => {
   if (e.data?.type === 'CHECK_ALERT') checkWeatherAlert();
+  if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 async function checkWeatherAlert() {
   try {
-    const url = API_URLS[0];
-    const res = await fetch(url);
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=23.7104,22.3569,24.3745,22.8456,24.8949,22.7010,25.7439,24.7471&longitude=90.4074,91.7832,88.6016,89.5403,91.8687,90.3533,89.2752,90.4203&current=temperature_2m,precipitation,weathercode,windspeed_10m&timezone=Asia%2FDhaka&forecast_days=1';
+    const res  = await fetch(url);
     const data = await res.json();
-    const arr = Array.isArray(data) ? data : [data];
-    const extremeCodes = arr.filter(d => (d.current?.weathercode || 0) >= 95);
-    if (extremeCodes.length > 0) {
-      await self.registration.showNotification('⛈️ তীব্র বজ্রঝড় সতর্কতা', {
-        body: `${extremeCodes.length}টি বিভাগে তীব্র বজ্রঝড় চলছে। নিরাপদ স্থানে থাকুন।`,
+    const arr  = Array.isArray(data) ? data : [data];
+    const storms = arr.filter(d => (d.current?.weathercode || 0) >= 95);
+    const highWind = arr.filter(d => (d.current?.windspeed_10m || 0) > 65);
+    if (storms.length > 0 || highWind.length > 0) {
+      await self.registration.showNotification('⛈️ তীব্র আবহাওয়া সতর্কতা', {
+        body: `${storms.length} বিভাগে বজ্রঝড় · ${highWind.length} বিভাগে ঝড়ো বাতাস। নিরাপদ স্থানে থাকুন।`,
         icon: '/icon-192.png',
         badge: '/icon-192.png',
-        vibrate: [300, 100, 300, 100, 300],
+        vibrate: [300,100,300,100,300],
         tag: 'bdas-storm',
         requireInteraction: true
       });
